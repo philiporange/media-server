@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "media-server"
+version = "0.1.0"
+description = "HLS media server with smart transcoding and remuxing"
+readme = "README.md"
+license = "CC0-1.0"
+authors = [
+    {name = "Philip Orange", email = "git@philiporange.com"}
+]
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Multimedia :: Sound/Audio",
+]
+keywords = ["hls", "streaming", "video", "audio", "transcoding", "fastapi"]
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "peewee",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[project.scripts]
+media-server = "media_server.server:main"
+media-worker = "media_server.worker:main"
+
+[tool.setuptools.packages.find]
+include = ["media_server*"]
+
+[tool.setuptools.package-data]
+media_server = ["static/*"]

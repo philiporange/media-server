@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>HLS Player</title>
+
+        <!-- video.js -->
+        <link
+            href="https://vjs.zencdn.net/8.9.0/video-js.css"
+            rel="stylesheet"
+        />
+        <script src="https://vjs.zencdn.net/8.9.0/video.min.js"></script>
+
+        <!-- house style -->
+        <style>
+            html,
+            body {
+                margin: 0;
+                height: 100%;
+                background: #000;
+            }
+            #media-wrapper {
+                height: 100%;
+            }
+            .video-js {
+                height: 100%;
+                width: 100%;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="media-wrapper"></div>
+
+        <!-- one-liner bootstrap -->
+        <script src="/assets/embed.js"></script>
+        <script>
+            /* look for ?file=<SOURCE> or ?src=<SOURCE> */
+            const p = new URLSearchParams(location.search);
+            const mediaFile = p.get("file") || p.get("src") || p.get("path");
+            if (!mediaFile) {
+                document.body.innerHTML =
+                    "<h2 style='color:#fff;font-family:sans-serif;margin:2rem'>" +
+                    "Missing <code>?file=…</code> query param.</h2>";
+            } else {
+                MediaEmbed.init({
+                    file: mediaFile,
+                    target: document.getElementById("media-wrapper"),
+                    fullPage: true,
+                });
+            }
+        </script>
+    </body>
+</html>

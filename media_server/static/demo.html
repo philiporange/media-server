@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Embed demo - Video & Audio Streaming</title>
+        <style>
+            body {
+                font-family: sans-serif;
+                margin: 2rem;
+                background: #f6f7f8;
+            }
+            h1 {
+                font-size: 1.4rem;
+            }
+            .card {
+                background: #fff;
+                padding: 1rem;
+                border-radius: 8px;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+                max-width: 680px;
+                margin-bottom: 2rem;
+            }
+            pre {
+                background: #f0f0f0;
+                padding: 1rem;
+                border-radius: 4px;
+                overflow-x: auto;
+            }
+            .example-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1rem;
+                margin-top: 1rem;
+            }
+            @media (max-width: 768px) {
+                .example-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <h1>media-server &middot; embed.js demo</h1>
+
+        <div class="card">
+            <h2>Video Streaming</h2>
+            <p>Embed video files with this simple code:</p>
+            <pre>
+&lt;script src="https://&lt;your-domain&gt;/assets/embed.js"
+        data-file="BigBuckBunny.mp4"
+        data-width="640"
+        data-height="360"&gt;&lt;/script&gt;</pre
+            >
+            <p>Live example:</p>
+            <!-- Video player appears here -->
+            <script
+                src="/assets/embed.js"
+                data-file="BigBuckBunny.mp4"
+                data-width="640"
+                data-height="360"
+            ></script>
+        </div>
+
+        <div class="card">
+            <h2>Audio Streaming</h2>
+            <p>The same embed code works for audio files:</p>
+            <pre>
+&lt;script src="https://&lt;your-domain&gt;/assets/embed.js"
+        data-file="song.mp3"
+        data-width="640"
+        data-height="100"&gt;&lt;/script&gt;</pre
+            >
+            <p>Live example (replace with your audio file):</p>
+            <!-- Audio player appears here -->
+            <script
+                src="/assets/embed.js"
+                data-file="sample.mp3"
+                data-width="640"
+                data-height="100"
+            ></script>
+        </div>
+
+        <div class="card">
+            <h2>Direct Links</h2>
+            <p>You can also use direct links to the player:</p>
+            <ul>
+                <li>
+                    Video:
+                    <code>https://your-server/index.html?file=video.mp4</code>
+                </li>
+                <li>
+                    Audio:
+                    <code>https://your-server/index.html?file=audio.mp3</code>
+                </li>
+            </ul>
+
+            <h2>Supported Formats</h2>
+            <div class="example-grid">
+                <div>
+                    <h3>🎬 Video Formats</h3>
+                    <ul>
+                        <li>MP4 (.mp4)</li>
+                        <li>MKV (.mkv)</li>
+                        <li>MOV (.mov)</li>
+                        <li>AVI (.avi)</li>
+                        <li>WebM (.webm)</li>
+                        <li>FLV (.flv)</li>
+                        <li>WMV (.wmv)</li>
+                        <li>M4V (.m4v)</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3>🎵 Audio Formats</h3>
+                    <ul>
+                        <li>MP3 (.mp3)</li>
+                        <li>FLAC (.flac)</li>
+                        <li>WAV (.wav)</li>
+                        <li>AAC (.aac, .m4a)</li>
+                        <li>OGG (.ogg)</li>
+                        <li>Opus (.opus)</li>
+                        <li>WMA (.wma)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Embed Options</h2>
+            <p>Available data attributes:</p>
+            <ul>
+                <li><code>data-file</code> - Media filename (required)</li>
+                <li><code>data-width</code> - Player width in pixels</li>
+                <li><code>data-height</code> - Player height in pixels</li>
+                <li>
+                    <code>data-autoplay</code> - Auto-start playback (default:
+                    true)
+                </li>
+                <li><code>data-muted</code> - Start muted (default: false)</li>
+                <li>
+                    <code>data-show-poster</code> - Show poster for audio
+                    (default: true)
+                </li>
+            </ul>
+        </div>
+    </body>
+</html>
