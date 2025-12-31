@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Media Player</title>
+
+  <!-- Plyr CSS -->
+  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+
+  <!-- Player styles -->
+  <link rel="stylesheet" href="/assets/player.css" />
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+    }
+
+    /* iOS viewport fix */
+    @supports (-webkit-touch-callout: none) {
+      html, body {
+        height: -webkit-fill-available;
+      }
+    }
+
+    #player-container {
+      width: 100%;
+      height: 100%;
+    }
+
+    .error-page {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: white;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .error-page h2 {
+      font-size: 24px;
+      margin-bottom: 16px;
+      color: #ff6b6b;
+    }
+
+    .error-page p {
+      font-size: 16px;
+      opacity: 0.8;
+      max-width: 400px;
+      line-height: 1.5;
+    }
+
+    .error-page code {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
+    }
+
+    .error-page a {
+      color: #4a9eff;
+      text-decoration: none;
+      margin-top: 20px;
+      padding: 10px 20px;
+      border: 1px solid #4a9eff;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .error-page a:hover {
+      background: #4a9eff;
+      color: #000;
+    }
+  </style>
+</head>
+<body>
+  <div id="player-container"></div>
+
+  <!-- HLS.js -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+  <!-- Plyr -->
+  <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+
+  <!-- Media Server Player -->
+  <script src="/assets/play.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Get file from URL parameters
+      const params = new URLSearchParams(window.location.search);
+      const file = params.get('file') || params.get('src') || params.get('path');
+
+      if (!file) {
+        document.getElementById('player-container').innerHTML = `
+          <div class="error-page">
+            <h2>No Media File Specified</h2>
+            <p>
+              Add a <code>?file=filename.mp4</code> parameter to the URL to play a media file.
+            </p>
+            <a href="/">Browse Files</a>
+          </div>
+        `;
+        return;
+      }
+
+      // Initialize player
+      const player = new MediaServerPlayer({
+        containerId: 'player-container',
+        videoId: 'player-video',
+        autoplay: true,
+        showBackButton: true,
+        showOverlay: true,
+        fullPage: true,
+        onBack: () => {
+          // Navigate back or go to file list
+          if (window.history.length > 1) {
+            window.history.back();
+          } else {
+            window.location.href = '/';
+          }
+        },
+        onEnded: () => {
+          // Could auto-advance to next file, for now just show overlay
+          console.log('Playback ended');
+        }
+      });
+
+      // Start playback
+      player.play(file).then(success => {
+        if (success) {
+          console.log('Playback started successfully');
+        }
+      });
+
+      // Store reference for debugging
+      window.player = player;
+
+      // Clean up on page unload
+      window.addEventListener('beforeunload', () => {
+        player.destroy();
+      });
+    });
+  </script>
+</body>
+</html>

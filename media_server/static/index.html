@@ -1,54 +1,270 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width,initial-scale=1" />
-        <title>HLS Player</title>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Media Server</title>
 
-        <!-- video.js -->
-        <link
-            href="https://vjs.zencdn.net/8.9.0/video-js.css"
-            rel="stylesheet"
-        />
-        <script src="https://vjs.zencdn.net/8.9.0/video.min.js"></script>
+  <!-- Plyr CSS -->
+  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
 
-        <!-- house style -->
-        <style>
-            html,
-            body {
-                margin: 0;
-                height: 100%;
-                background: #000;
-            }
-            #media-wrapper {
-                height: 100%;
-            }
-            .video-js {
-                height: 100%;
-                width: 100%;
-            }
-        </style>
-    </head>
-    <body>
-        <div id="media-wrapper"></div>
+  <!-- Styles -->
+  <link rel="stylesheet" href="/assets/style.css" />
+  <link rel="stylesheet" href="/assets/player.css" />
 
-        <!-- one-liner bootstrap -->
-        <script src="/assets/embed.js"></script>
-        <script>
-            /* look for ?file=<SOURCE> or ?src=<SOURCE> */
-            const p = new URLSearchParams(location.search);
-            const mediaFile = p.get("file") || p.get("src") || p.get("path");
-            if (!mediaFile) {
-                document.body.innerHTML =
-                    "<h2 style='color:#fff;font-family:sans-serif;margin:2rem'>" +
-                    "Missing <code>?file=…</code> query param.</h2>";
-            } else {
-                MediaEmbed.init({
-                    file: mediaFile,
-                    target: document.getElementById("media-wrapper"),
-                    fullPage: true,
-                });
-            }
-        </script>
-    </body>
+  <style>
+    /* Additional layout styles */
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .player-section {
+      flex: 1;
+      min-height: 400px;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .player-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      min-height: 400px;
+      color: #666;
+      text-align: center;
+      padding: 40px;
+    }
+
+    .player-placeholder .icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+      opacity: 0.5;
+    }
+
+    .player-placeholder h3 {
+      font-size: 20px;
+      margin-bottom: 8px;
+      color: #888;
+    }
+
+    .player-placeholder p {
+      font-size: 14px;
+      opacity: 0.7;
+    }
+
+    /* Fullscreen player mode */
+    body.player-active .sidebar-section,
+    body.player-active .header-section,
+    body.player-active .log-section {
+      display: none;
+    }
+
+    body.player-active .main-content {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 9999;
+    }
+
+    body.player-active .player-section {
+      border-radius: 0;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header-section {
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid #eee;
+      background: white;
+    }
+
+    .header-section h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    /* Layout grid */
+    .content-grid {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 0;
+      flex: 1;
+    }
+
+    @media (max-width: 900px) {
+      .content-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar-section {
+        max-height: 300px;
+        overflow-y: auto;
+      }
+    }
+
+    /* Sidebar */
+    .sidebar-section {
+      background: #fafafa;
+      border-right: 1px solid #eee;
+      overflow-y: auto;
+    }
+
+    .sidebar-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid #eee;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #666;
+      background: #f5f5f5;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    /* Log section */
+    .log-section {
+      background: #f9f9f9;
+      border-top: 1px solid #eee;
+      padding: 1rem 1.5rem;
+    }
+
+    .log-section h4 {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #666;
+      margin-bottom: 0.5rem;
+    }
+
+    /* Progress bar in sidebar */
+    .progress-section {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid #eee;
+      background: white;
+    }
+
+    .progress-label {
+      font-size: 0.8rem;
+      color: #666;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    #barBox {
+      margin: 0;
+      max-width: 100%;
+    }
+
+    /* Health status */
+    .health-status {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid #eee;
+      font-size: 0.85rem;
+    }
+
+    .health-status .status-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .health-status .status-label {
+      color: #666;
+    }
+
+    .health-status .status-value {
+      font-weight: 500;
+    }
+
+    .status-ok { color: #4CAF50; }
+    .status-warning { color: #FF9800; }
+    .status-error { color: #f44336; }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <header class="header-section">
+      <h1>Media Server</h1>
+    </header>
+
+    <div class="content-grid">
+      <aside class="sidebar-section">
+        <div class="sidebar-header">Media Files</div>
+
+        <div class="progress-section" id="progress-section" style="display: none;">
+          <div class="progress-label">
+            <span>Transcoding</span>
+            <span id="progress-percent">0%</span>
+          </div>
+          <div id="barBox">
+            <div id="bar"></div>
+          </div>
+        </div>
+
+        <div class="health-status" id="health-status">
+          <div class="status-item">
+            <span class="status-label">Status</span>
+            <span class="status-value" id="health-value">Loading...</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">Queue</span>
+            <span class="status-value" id="queue-value">-</span>
+          </div>
+        </div>
+
+        <ul id="mediaList"></ul>
+      </aside>
+
+      <main class="main-content">
+        <div class="player-section">
+          <div id="player-container">
+            <div class="player-placeholder">
+              <div class="icon">🎬</div>
+              <h3>Select a file to play</h3>
+              <p>Choose a video or audio file from the sidebar</p>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <section class="log-section">
+      <h4>Activity Log</h4>
+      <pre id="log"></pre>
+    </section>
+  </div>
+
+  <!-- HLS.js -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+  <!-- Plyr -->
+  <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+
+  <!-- Player module -->
+  <script src="/assets/play.js"></script>
+
+  <!-- Main script -->
+  <script src="/assets/script.js"></script>
+</body>
 </html>

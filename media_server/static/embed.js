@@ -16,8 +16,39 @@
     ───────────────────────────────────────────────────────────────────────── */
 
 (function (global) {
+    // Debug logging utility
+    const EmbedLog = {
+        _enabled: true,
+        _prefix: '[MediaEmbed]',
+
+        enable() { this._enabled = true; },
+        disable() { this._enabled = false; },
+
+        debug(...args) {
+            if (this._enabled) console.debug(this._prefix, ...args);
+        },
+        info(...args) {
+            if (this._enabled) console.info(this._prefix, ...args);
+        },
+        warn(...args) {
+            console.warn(this._prefix, ...args);
+        },
+        error(...args) {
+            console.error(this._prefix, ...args);
+        },
+        group(label) {
+            if (this._enabled) console.group(this._prefix + ' ' + label);
+        },
+        groupEnd() {
+            if (this._enabled) console.groupEnd();
+        }
+    };
+
+    EmbedLog.info('embed.js loaded');
+
     // Helper function to create loading overlay
     function createLoadingOverlay(filename) {
+        EmbedLog.debug('createLoadingOverlay:', filename);
         const overlay = document.createElement("div");
         overlay.style.cssText = `
             position: absolute;
@@ -87,22 +118,26 @@
 
     // Helper function to wait for playlist availability
     async function waitForPlaylist(playlistUrl, loadingOverlay) {
+        EmbedLog.debug('waitForPlaylist: waiting for', playlistUrl);
         const maxAttempts = 30; // 30 seconds max
         let attempts = 0;
-        
+
         while (attempts < maxAttempts) {
             try {
                 const response = await fetch(playlistUrl, { method: 'HEAD' });
                 if (response.ok) {
+                    EmbedLog.info('waitForPlaylist: playlist ready after', attempts, 'attempts');
                     return; // Playlist is ready
                 }
+                EmbedLog.debug('waitForPlaylist: attempt', attempts + 1, 'status:', response.status);
             } catch (e) {
+                EmbedLog.debug('waitForPlaylist: attempt', attempts + 1, 'fetch error (expected while transcoding)');
                 // Ignore fetch errors, keep polling
             }
-            
+
             attempts++;
             await new Promise(resolve => setTimeout(resolve, 1000));
-            
+
             // Update loading text to show progress
             const text = loadingOverlay.querySelector('div:nth-child(2)');
             if (text) {
@@ -115,7 +150,8 @@
                 }
             }
         }
-        
+
+        EmbedLog.error('waitForPlaylist: timeout after', maxAttempts, 'attempts');
         throw new Error("Playlist not ready after 30 seconds");
     }
 
@@ -133,16 +169,22 @@
          * @param {boolean} [opts.showPoster] – show poster for audio files (default true)
          */
         async init(opts = {}) {
+            EmbedLog.group('init');
+            EmbedLog.info('init called with:', { file: opts.file, width: opts.width, height: opts.height });
+
             if (!opts.file) {
-                console.error("MediaEmbed: opts.file missing");
+                EmbedLog.error("opts.file missing");
+                EmbedLog.groupEnd();
                 return;
             }
             if (!opts.target) {
-                console.error("MediaEmbed: opts.target missing");
+                EmbedLog.error("opts.target missing");
+                EmbedLog.groupEnd();
                 return;
             }
 
             /* 1 — show loading overlay */
+            EmbedLog.debug('showing loading overlay');
             // Ensure target has relative positioning for overlay
             const originalPosition = opts.target.style.position;
             if (!originalPosition || originalPosition === 'static') {
@@ -154,31 +196,37 @@
             opts.target.appendChild(loadingOverlay);
 
             /* 2 — ask back-end to prepare / (re-)use an HLS job */
+            EmbedLog.debug('requesting stream from backend');
             let playlist, mediaType, jobId;
             try {
-                const r = await fetch(
-                    `/stream/${encodeURIComponent(opts.file)}`,
-                    {
+                const streamUrl = `/stream/${encodeURIComponent(opts.file)}`;
+                EmbedLog.debug('POST', streamUrl);
+                const r = await fetch(streamUrl, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: "{}",
                     },
                 );
+                EmbedLog.debug('stream response status:', r.status);
                 if (!r.ok) throw new Error(await r.text());
                 const data = await r.json();
                 playlist = data.playlist;
                 mediaType = data.media_type || "video";
                 jobId = data.job_id;
+                EmbedLog.info('job created:', jobId, 'playlist:', playlist, 'type:', mediaType);
             } catch (e) {
-                console.error("MediaEmbed: /stream error", e);
+                EmbedLog.error("/stream error:", e);
+                EmbedLog.groupEnd();
                 opts.target.innerHTML = `<div style="color: red; padding: 20px;">Error loading media: ${e.message}</div>`;
                 return;
             }
 
             /* 3 — wait for playlist to be ready */
+            EmbedLog.debug('waiting for playlist to be ready');
             await waitForPlaylist(playlist, loadingOverlay);
 
             /* 4 — create <video> element + bootstrap video.js */
+            EmbedLog.debug('creating video element');
             const video = document.createElement("video");
             video.className = "video-js vjs-default-skin";
             video.controls = true;
@@ -223,6 +271,7 @@
             opts.target.appendChild(video);
 
             /* 5 — video.js player instance */
+            EmbedLog.debug('initializing video.js player');
             const player = global.videojs(video, {
                 liveui: true,
                 preload: "auto",
@@ -231,9 +280,13 @@
                 },
             });
             player.src({ src: playlist, type: "application/x-mpegURL" });
-            player.play().catch(() => {
+            EmbedLog.debug('starting playback');
+            player.play().catch((e) => {
+                EmbedLog.debug('autoplay blocked (expected):', e.message);
                 /* autoplay blocked – ignore */
             });
+            EmbedLog.info('player initialized successfully');
+            EmbedLog.groupEnd();
             return player;
         },
     };
@@ -243,8 +296,10 @@
         const s = document.currentScript;
         const file = s.dataset.file;
         if (file) {
+            EmbedLog.info('auto-init detected, file:', file);
             const w = parseInt(s.dataset.width || "", 10);
             const h = parseInt(s.dataset.height || "", 10);
+            EmbedLog.debug('dimensions:', { width: w, height: h });
             API.init({
                 file,
                 target: s.parentNode,
@@ -255,8 +310,13 @@
                 fullPage: false, // inline embed keeps given dimensions
                 showPoster: s.dataset.showPoster !== "false",
             });
+        } else {
+            EmbedLog.debug('no data-file attribute, waiting for manual init');
         }
+    } else {
+        EmbedLog.debug('no currentScript, waiting for manual init');
     }
 
     global.MediaEmbed = API;
+    EmbedLog.info('MediaEmbed API exposed on window');
 })(window);

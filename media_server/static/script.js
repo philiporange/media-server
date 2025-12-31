@@ -1,182 +1,364 @@
-/* ───────── global state ───────── */
-let player = null; // video.js instance
-let selectedFile = null; // currently chosen filename
-let curJob = null; // transcoding/remux job id
-let pollTimer = null; // /info poll interval
-let totalDur = 0; // full video length (s)
-let mediaType = "video"; // current media type
+/**
+ * Media Server UI - Main application script
+ *
+ * Handles file listing, player integration, health monitoring, and activity logging.
+ */
 
-/* ───────── helpers ───────── */
+// Debug logging utility
+const ScriptLog = {
+  _enabled: true,
+  _prefix: '[MediaServerUI]',
+
+  enable() { this._enabled = true; },
+  disable() { this._enabled = false; },
+
+  debug(...args) {
+    if (this._enabled) console.debug(this._prefix, ...args);
+  },
+  info(...args) {
+    if (this._enabled) console.info(this._prefix, ...args);
+  },
+  warn(...args) {
+    console.warn(this._prefix, ...args);
+  },
+  error(...args) {
+    console.error(this._prefix, ...args);
+  },
+  group(label) {
+    if (this._enabled) console.group(this._prefix + ' ' + label);
+  },
+  groupEnd() {
+    if (this._enabled) console.groupEnd();
+  }
+};
+
+/* Global state */
+let player = null;
+let selectedFile = null;
+let curJob = null;
+let pollTimer = null;
+let healthTimer = null;
+let totalDur = 0;
+
+ScriptLog.info('script loaded, initializing...');
+
+/* Helpers */
 const log = (m) => {
-    const box = document.getElementById("log");
-    box.textContent += `[${new Date().toLocaleTimeString()}] ${m}\n`;
-    box.scrollTop = box.scrollHeight;
+  const box = document.getElementById('log');
+  if (!box) return;
+  const time = new Date().toLocaleTimeString();
+  box.textContent += `[${time}] ${m}\n`;
+  box.scrollTop = box.scrollHeight;
+  ScriptLog.debug('activity log:', m);
 };
 
 const formatFileSize = (bytes) => {
-    const sizes = ["B", "KB", "MB", "GB"];
-    if (bytes === 0) return "0 B";
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return Math.round((bytes / Math.pow(1024, i)) * 100) / 100 + " " + sizes[i];
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  if (bytes === 0) return '0 B';
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return Math.round((bytes / Math.pow(1024, i)) * 100) / 100 + ' ' + sizes[i];
 };
 
-/* ───────── DOM ready ───────── */
-document.addEventListener("DOMContentLoaded", () => {
-    refreshFiles();
+/* DOM ready */
+document.addEventListener('DOMContentLoaded', () => {
+  ScriptLog.info('DOM ready, starting initialization');
 
-    // Manual "Start Stream" button (optional – auto-start also works by clicking a filename)
-    document.getElementById("goBtn").onclick = () => {
-        if (!selectedFile) return log("Pick a media file first");
-        startStream(selectedFile);
-    };
+  refreshFiles();
+  checkHealth();
+
+  // Start health polling
+  healthTimer = setInterval(checkHealth, 30000);
+  ScriptLog.debug('health polling started (30s interval)');
+
+  // Check for file parameter in URL
+  const params = new URLSearchParams(window.location.search);
+  const fileParam = params.get('file') || params.get('src');
+  if (fileParam) {
+    ScriptLog.info('file parameter found in URL:', fileParam);
+    startStream(fileParam);
+  }
 });
 
-/* ───────── build media list ───────── */
+/* Health check */
+async function checkHealth() {
+  ScriptLog.debug('checkHealth: fetching /health');
+  try {
+    const r = await fetch('/health');
+    const health = await r.json();
+    ScriptLog.debug('checkHealth: response', health);
+
+    const healthValue = document.getElementById('health-value');
+    const queueValue = document.getElementById('queue-value');
+
+    if (healthValue) {
+      healthValue.textContent = health.status === 'ok' ? 'Healthy' : health.status;
+      healthValue.className = 'status-value ' + (health.status === 'ok' ? 'status-ok' : 'status-warning');
+    }
+
+    if (queueValue && health.queue) {
+      const working = health.queue.working || 0;
+      const queued = health.queue.queued || 0;
+      queueValue.textContent = working > 0 ? `${working} active, ${queued} queued` : 'Idle';
+      ScriptLog.debug('checkHealth: queue status - working:', working, 'queued:', queued);
+    }
+  } catch (e) {
+    ScriptLog.error('checkHealth: failed', e);
+    const healthValue = document.getElementById('health-value');
+    if (healthValue) {
+      healthValue.textContent = 'Offline';
+      healthValue.className = 'status-value status-error';
+    }
+  }
+}
+
+/* Build media list */
 async function refreshFiles() {
-    try {
-        const r = await fetch("/list");
-        const { files = [] } = await r.json();
-        const ul = document.getElementById("mediaList");
-        ul.innerHTML = files.length ? "" : "<li>-- no files --</li>";
+  ScriptLog.group('refreshFiles');
+  ScriptLog.debug('fetching /list');
+  try {
+    const r = await fetch('/list');
+    const { files = [] } = await r.json();
+    ScriptLog.info('received', files.length, 'files');
 
-        files.forEach((fileInfo) => {
-            const li = document.createElement("li");
-            const a = document.createElement("a");
-            a.href = "#";
-
-            // Add icon based on media type
-            const icon = fileInfo.is_audio ? "🎵" : "🎬";
-            const sizeStr = formatFileSize(fileInfo.size);
-            a.innerHTML = `${icon} ${fileInfo.name} <span style="color:#666; font-size:0.9em">(${sizeStr})</span>`;
-
-            a.onclick = (e) => {
-                e.preventDefault();
-                document
-                    .querySelectorAll("#mediaList a")
-                    .forEach((x) => x.classList.remove("selected"));
-                a.classList.add("selected");
-                selectedFile = fileInfo.name;
-                startStream(fileInfo.name); // auto-start on click
-            };
-            li.appendChild(a);
-            ul.appendChild(li);
-        });
-        log(
-            `media files: ${files.length} (${files.filter((f) => f.is_audio).length} audio, ${files.filter((f) => !f.is_audio).length} video)`,
-        );
-    } catch (e) {
-        log("error loading /list: " + e);
+    const ul = document.getElementById('mediaList');
+    if (!ul) {
+      ScriptLog.warn('mediaList element not found');
+      ScriptLog.groupEnd();
+      return;
     }
+
+    ul.innerHTML = files.length ? '' : '<li class="empty-state">No media files found</li>';
+
+    files.forEach((fileInfo) => {
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = '#';
+
+      const icon = fileInfo.is_audio ? '🎵' : '🎬';
+      const sizeStr = formatFileSize(fileInfo.size);
+      a.innerHTML = `
+        <span class="file-icon">${icon}</span>
+        <span class="file-name">${fileInfo.name}</span>
+        <span class="file-size">${sizeStr}</span>
+      `;
+
+      a.onclick = (e) => {
+        e.preventDefault();
+        ScriptLog.debug('file selected:', fileInfo.name);
+        document.querySelectorAll('#mediaList a').forEach(x => x.classList.remove('selected'));
+        a.classList.add('selected');
+        selectedFile = fileInfo.name;
+        startStream(fileInfo.name);
+      };
+
+      li.appendChild(a);
+      ul.appendChild(li);
+    });
+
+    const audioCount = files.filter(f => f.is_audio).length;
+    const videoCount = files.filter(f => !f.is_audio).length;
+    ScriptLog.info('file breakdown: video=', videoCount, 'audio=', audioCount);
+    log(`Loaded ${files.length} files (${videoCount} video, ${audioCount} audio)`);
+
+    ScriptLog.groupEnd();
+  } catch (e) {
+    ScriptLog.error('failed to load file list:', e);
+    ScriptLog.groupEnd();
+    log('Error loading file list: ' + e);
+  }
 }
 
-/* ───────── start / restart stream ───────── */
+/* Start stream with new player */
 async function startStream(file) {
-    try {
-        // Empty body → server auto-selects best quality (copy/passthrough if possible)
-        const r = await fetch(`/stream/${encodeURIComponent(file)}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: "{}",
-        });
-        if (!r.ok) throw new Error(await r.text());
+  ScriptLog.group('startStream');
+  ScriptLog.info('starting stream for:', file);
 
-        const js = await r.json();
-        curJob = js.job_id;
-        totalDur = js.duration;
-        mediaType = js.media_type || "video";
+  // Clean up existing player
+  if (player) {
+    ScriptLog.debug('destroying existing player');
+    player.destroy();
+    player = null;
+  }
 
-        log(`job ${curJob} started (${mediaType}) – ${totalDur.toFixed(1)} s`);
-
-        startPlayer(js.playlist, js.filename);
-        pollInfo();
-    } catch (e) {
-        log("start error: " + e);
-    }
-}
-
-/* ───────── bootstrap / reuse Video.js player ───────── */
-function startPlayer(src, filename) {
-    if (!player) {
-        player = videojs("player", {
-            autoplay: true,
-            preload: "auto",
-            liveui: true,
-            html5: { vhs: { overrideNative: !videojs.browser.IS_SAFARI } },
-            fluid: true,
-        });
-
-        player.on("error", () =>
-            log(
-                `player error ${player.error().code}: ${player.error().message}`,
-            ),
-        );
-        player.on("playing", () => log("playback started"));
-        player.on("waiting", () => log("buffering…"));
-        player.on("stalled", () => log("stalled – rebuffering"));
-        player.on("ended", () => log("playback ended"));
-    }
-
-    // Add audio visualization for audio files
-    if (mediaType === "audio") {
-        player.addClass("vjs-audio-only");
-        // Create a simple audio visualization poster
-        const canvas = document.createElement("canvas");
-        canvas.width = 640;
-        canvas.height = 360;
-        const ctx = canvas.getContext("2d");
-
-        // Dark background
-        ctx.fillStyle = "#000";
-        ctx.fillRect(0, 0, 640, 360);
-
-        // Audio icon
-        ctx.font = "80px sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillStyle = "#fff";
-        ctx.fillText("🎵", 320, 160);
-
-        // Filename
-        ctx.font = "24px sans-serif";
-        ctx.fillStyle = "#ddd";
-        ctx.fillText(filename || "Audio Stream", 320, 220);
-
-        player.poster(canvas.toDataURL());
-    } else {
-        player.removeClass("vjs-audio-only");
-        player.poster("");
-    }
-
-    player.reset();
-    player.src({ src, type: "application/x-mpegURL" });
-    player.play().catch((e) => log("autoplay failed: " + e));
-}
-
-/* ───────── /info poll ───────── */
-function pollInfo() {
+  // Clear any existing poll timer
+  if (pollTimer) {
+    ScriptLog.debug('clearing existing poll timer');
     clearInterval(pollTimer);
-    pollTimer = setInterval(async () => {
-        if (!curJob) return;
-        try {
-            const r = await fetch("/info/" + curJob);
-            if (!r.ok) return;
-            const js = await r.json();
+    pollTimer = null;
+  }
 
-            const done = js.transcoded || 0;
-            if (totalDur) {
-                const pct = Math.min(100, (100 * done) / totalDur);
-                document.getElementById("bar").style.width = pct + "%";
-            }
+  log(`Starting stream: ${file}`);
 
-            if (js.status.startsWith("error")) {
-                log("job error: " + js.status);
-                clearInterval(pollTimer);
-            }
-            if (js.status === "done") {
-                log("job complete");
-                clearInterval(pollTimer);
-            }
-        } catch {
-            /* ignore network hiccups */
-        }
-    }, 2000);
+  // Show progress section
+  const progressSection = document.getElementById('progress-section');
+  if (progressSection) {
+    progressSection.style.display = 'block';
+  }
+
+  // Initialize new player
+  ScriptLog.debug('creating MediaServerPlayer instance');
+  player = new MediaServerPlayer({
+    containerId: 'player-container',
+    videoId: 'player-video',
+    autoplay: true,
+    showBackButton: true,
+    showOverlay: true,
+    fullPage: false,
+    onBack: () => {
+      ScriptLog.info('onBack callback triggered');
+      // Exit fullscreen mode if active
+      document.body.classList.remove('player-active');
+
+      // Show placeholder
+      const container = document.getElementById('player-container');
+      if (container) {
+        container.innerHTML = `
+          <div class="player-placeholder">
+            <div class="icon">🎬</div>
+            <h3>Select a file to play</h3>
+            <p>Choose a video or audio file from the sidebar</p>
+          </div>
+        `;
+      }
+
+      // Clean up player
+      if (player) {
+        ScriptLog.debug('destroying player in onBack');
+        player.destroy();
+        player = null;
+      }
+
+      // Hide progress section
+      if (progressSection) {
+        progressSection.style.display = 'none';
+      }
+
+      // Clear poll timer
+      if (pollTimer) {
+        ScriptLog.debug('clearing poll timer in onBack');
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+
+      log('Player closed');
+    },
+    onEnded: () => {
+      ScriptLog.info('onEnded callback triggered');
+      log('Playback ended');
+    }
+  });
+
+  try {
+    ScriptLog.debug('calling player.play()');
+    const success = await player.play(file);
+
+    if (success) {
+      ScriptLog.info('playback started successfully');
+      log(`Playback started: ${file}`);
+      curJob = player.jobId;
+      totalDur = player.jobInfo?.duration || 0;
+      ScriptLog.debug('job:', curJob, 'duration:', totalDur);
+
+      // Start progress polling
+      pollInfo();
+
+      // Update URL without reload
+      const url = new URL(window.location);
+      url.searchParams.set('file', file);
+      window.history.replaceState({}, '', url);
+      ScriptLog.debug('URL updated:', url.toString());
+    } else {
+      ScriptLog.warn('player.play() returned false');
+    }
+    ScriptLog.groupEnd();
+  } catch (e) {
+    ScriptLog.error('failed to start stream:', e);
+    ScriptLog.groupEnd();
+    log('Error starting stream: ' + e);
+  }
 }
+
+/* Poll job info for progress */
+function pollInfo() {
+  ScriptLog.debug('pollInfo: starting job polling');
+  if (pollTimer) clearInterval(pollTimer);
+
+  pollTimer = setInterval(async () => {
+    if (!curJob) return;
+
+    try {
+      const r = await fetch('/info/' + curJob);
+      if (!r.ok) {
+        ScriptLog.debug('pollInfo: fetch failed, status:', r.status);
+        return;
+      }
+      const js = await r.json();
+
+      const done = js.transcoded || 0;
+      const progressSection = document.getElementById('progress-section');
+      const progressPercent = document.getElementById('progress-percent');
+      const bar = document.getElementById('bar');
+
+      if (totalDur > 0) {
+        const pct = Math.min(100, (100 * done) / totalDur);
+
+        if (bar) bar.style.width = pct + '%';
+        if (progressPercent) progressPercent.textContent = Math.round(pct) + '%';
+
+        // Show/hide progress section
+        if (progressSection) {
+          progressSection.style.display = js.status === 'done' ? 'none' : 'block';
+        }
+      }
+
+      if (js.status.startsWith('error')) {
+        ScriptLog.error('pollInfo: job error:', js.status);
+        log('Job error: ' + js.status);
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+
+      if (js.status === 'done') {
+        ScriptLog.info('pollInfo: transcode complete');
+        log('Transcode complete');
+        clearInterval(pollTimer);
+        pollTimer = null;
+        if (progressSection) {
+          progressSection.style.display = 'none';
+        }
+      }
+    } catch (e) {
+      ScriptLog.debug('pollInfo: network error (ignored):', e.message);
+      // Ignore network hiccups
+    }
+  }, 2000);
+}
+
+/* Toggle fullscreen player mode */
+function toggleFullscreen() {
+  ScriptLog.debug('toggleFullscreen');
+  document.body.classList.toggle('player-active');
+}
+
+/* Keyboard shortcuts for app-level controls */
+document.addEventListener('keydown', (e) => {
+  // F key toggles fullscreen mode (different from player's fullscreen)
+  if (e.key === 'F' && e.shiftKey) {
+    e.preventDefault();
+    ScriptLog.debug('keyboard: Shift+F toggle fullscreen mode');
+    toggleFullscreen();
+  }
+
+  // R key refreshes file list
+  if (e.key === 'r' && !e.ctrlKey && !e.metaKey) {
+    // Only if not typing in an input
+    if (document.activeElement.tagName !== 'INPUT') {
+      e.preventDefault();
+      ScriptLog.debug('keyboard: R refresh file list');
+      refreshFiles();
+      log('Refreshed file list');
+    }
+  }
+});
+
+ScriptLog.info('script initialization complete');
