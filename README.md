@@ -1,5 +1,7 @@
 # Media Server
 
+> **Warning**: This project is under active development. APIs and features may change without notice.
+
 A high-performance HLS (HTTP Live Streaming) media server built with FastAPI. Handles video and audio streaming with smart transcoding and remuxing.
 
 ## Features
@@ -111,11 +113,3 @@ media_server/
 ├── jobs.py        # Job management
 └── static/        # Web interface assets
 ```
-
-## Author
-
-Philip Orange <git@philiporange.com>
-
-## License
-
-CC0
