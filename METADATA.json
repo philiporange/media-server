@@ -1,7 +1,7 @@
 {
   "name": "media-server",
-  "short_description": "High-performance HLS media server with smart transcoding and remuxing for video and audio streaming.",
-  "long_description": "Media Server is a FastAPI-based HTTP Live Streaming (HLS) platform that handles universal video and audio format support with intelligent processing. It automatically detects whether files can be remuxed as-is (zero-cost operation for H.264+AAC) or require transcoding, then produces HLS-compatible segments for streaming. The system uses SQLite with Peewee ORM for persistent job queue management, implements a background worker thread for transcoding with graceful shutdown, and provides a web player interface with progress tracking and job cancellation. It includes path traversal protection, rate limiting, structured logging, and configurable retention policies for automatic cleanup.",
+  "short_description": "High-performance HLS media server with intelligent transcoding and remuxing for video and audio streaming.",
+  "long_description": "Media Server is a FastAPI-based HTTP Live Streaming (HLS) platform that provides universal video and audio format support with intelligent processing. It automatically detects whether media files can be remuxed efficiently (zero-cost operation for H.264+AAC compatible formats) or require transcoding, then produces HLS-compatible segments ready for streaming. The system uses SQLite with Peewee ORM for persistent job queue management, implements a background worker thread for parallel transcoding with graceful shutdown and timeout detection, and provides a modern web player interface with real-time progress tracking and job cancellation. Additional features include path traversal protection, IP-based rate limiting, structured logging support, subtitle extraction, thumbnail generation, and configurable retention policies for automatic job cleanup.",
   "keywords": [
     "hls-streaming",
     "video-transcoding",
@@ -13,8 +13,11 @@
     "video-streaming",
     "audio-streaming",
     "job-queue",
+    "background-worker",
     "sqlite",
-    "web-player"
+    "web-player",
+    "streaming-server",
+    "video-encoding"
   ],
   "primary_language": "Python",
   "languages": [
@@ -37,7 +40,7 @@
     },
     {
       "path": "media_server/worker.py",
-      "description": "Background worker that polls the SQLite job queue, executes FFmpeg transcoding/remuxing processes, tracks progress, handles graceful shutdown, and supports job cancellation."
+      "description": "Background worker that polls the SQLite job queue, executes FFmpeg transcoding/remuxing processes, tracks progress, handles graceful shutdown, and supports job cancellation with timeout detection."
     },
     {
       "path": "media_server/jobs.py",
@@ -49,44 +52,31 @@
     },
     {
       "path": "media_server/config.py",
-      "description": "Centralized runtime configuration singleton with environment variable overrides for paths, worker concurrency, segment duration, job retention, and rate limiting."
+      "description": "Centralized runtime configuration singleton with environment variable overrides for paths, worker concurrency, segment duration, job retention, rate limiting, and hardware acceleration settings."
     },
     {
       "path": "media_server/static/index.html",
-      "description": "Main web player interface using Video.js for HLS playback with file selection and real-time transcoding progress display."
+      "description": "Main web player interface using Video.js for HLS playback with file selection, real-time transcoding progress display, and job control features."
     },
     {
       "path": "media_server/static/script.js",
-      "description": "Client-side JavaScript handling file listing, job submission, progress polling, player control, and cancel functionality."
+      "description": "Client-side JavaScript handling file listing, job submission, progress polling, player control, and cancellation functionality with real-time UI updates."
     },
     {
       "path": "media_server/static/embed.js",
-      "description": "Embeddable widget script for integrating the HLS player into external websites."
+      "description": "Embeddable widget script for integrating the HLS player into external websites with configurable dimensions and playback options."
     },
     {
       "path": "media_server/static/demo.html",
-      "description": "Demo page showcasing the embeddable player widget capabilities."
+      "description": "Demo page showcasing the embeddable player widget capabilities and integration examples."
     },
     {
       "path": "media_server/__init__.py",
-      "description": "Package initialization with version metadata."
+      "description": "Package initialization with version metadata and module exports."
+    },
+    {
+      "path": "run_server.py",
+      "description": "Entry point script that launches the FastAPI server with automatic worker initialization."
     }
-  ],
-  "version": "0.1.0",
-  "author": "Philip Orange <git@philiporange.com>",
-  "license": "CC0-1.0",
-  "git": {
-    "is_repo": false,
-    "remote_url": null,
-    "github_name": null,
-    "default_branch": null,
-    "last_commit": null
-  },
-  "stats": {
-    "files": 18,
-    "lines_of_code": 1563,
-    "size_bytes": 91999
-  },
-  "generated_at": "2025-12-06T21:57:41.065279",
-  "generator_version": "1.0.0"
+  ]
 }
